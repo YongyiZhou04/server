@@ -62,6 +62,8 @@
     "compare": "cpp",
     "concepts": "cpp",
     "algorithm": "cpp",
-    "thread": "cpp"
+    "thread": "cpp",
+    "__tree": "cpp",
+    "map": "cpp"
   }
 }

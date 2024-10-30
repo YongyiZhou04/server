@@ -9,19 +9,14 @@
 #include <algorithm>
 #include <mutex>
 #include <atomic>
+#include <poll.h>
 
-const int PORT = 8080;
-
-int server_fd = 0;
-bool running = true;
-std::vector<int> client_fds;
-std::mutex vec_mutex;
-std::vector<std::thread> client_threads;
+#include "main.h"
 
 void signalHandler(int signum)
 {
     std::cout << "\nCaught signal " << signum << ". Shutting down server..." << std::endl;
-    running = false;
+    running.store(false);
 }
 
 void handleClient(int client_fd)
@@ -30,28 +25,47 @@ void handleClient(int client_fd)
     char buffer[1024] = {0};
     while (running)
     {
-        std::string spam = std::to_string(running);
-        int valsent = send(client_fd, spam.c_str(), spam.size(), 0);
+        pollfd clientSocketFD = {};
+        clientSocketFD.fd = client_fd;
+        clientSocketFD.events = POLLRDNORM | POLLWRNORM;
+        clientSocketFD.revents = 0;
 
-        int valread = read(client_fd, buffer, sizeof(buffer) - 1);
-        if (valread <= 0)
+        int activity = poll(&clientSocketFD, 1, 1);
+
+        if (activity < 0)
         {
-            std::cerr << "Read from client failed or connection closed" << std::endl;
+            std::cerr << "Failed to poll() from client" << std::endl;
             break;
         }
 
-        // Null-terminate the buffer based on bytes read
-        buffer[valread] = '\0';
-
-        // Print out receival in server log
-        std::cout << "Received: " << buffer << std::endl;
-
-        // Respond to client
-        std::string response = "We received " + std::string(buffer);
-        int valsent = send(client_fd, response.c_str(), response.size(), 0);
-        if (valsent <= 0)
+        if (activity > 0)
         {
-            std::cerr << "Failed to send feedback to client" << std::endl;
+            if (clientSocketFD.revents & POLLRDNORM)
+            {
+                int valread = read(client_fd, buffer, sizeof(buffer) - 1);
+                if (valread <= 0)
+                {
+                    std::cerr << "Read from client failed or connection closed" << std::endl;
+                    break;
+                }
+
+                // Null-terminate the buffer based on bytes read
+                buffer[valread] = '\0';
+
+                // Print out receival in server log
+                std::cout << "Received: " << buffer << std::endl;
+
+                // Respond to client
+                std::string response = "We received " + std::string(buffer);
+                if (clientSocketFD.revents & POLLWRNORM)
+                {
+                    int valsent = send(client_fd, response.c_str(), response.size(), 0);
+                    if (valsent <= 0)
+                    {
+                        std::cerr << "Failed to send feedback to client" << std::endl;
+                    }
+                }
+            }
         }
     }
 
@@ -61,6 +75,8 @@ void handleClient(int client_fd)
 
 int main()
 {
+    std::vector<std::thread> client_threads;
+
     signal(SIGINT, signalHandler);
 
     // Create a main socket
@@ -95,17 +111,29 @@ int main()
 
     while (running)
     {
-        // Accept incoming connections
-        int client_fd = accept(server_fd, nullptr, nullptr);
-        if (client_fd < 0)
-        {
-            std::cerr << "Accept failed" << std::endl;
-            continue;
-        }
-        client_fds.push_back(client_fd);
+        pollfd listeningSocketFD = {};
+        listeningSocketFD.fd = server_fd;
+        listeningSocketFD.events = POLLRDNORM;
+        listeningSocketFD.revents = 0;
 
-        // Create a thread and store it in the vector
-        client_threads.emplace_back(std::thread(handleClient, client_fd));
+        int activity = poll(&listeningSocketFD, 1, 1);
+
+        if (activity < 0)
+        {
+            std::cerr << "Failed to poll()" << std::endl;
+            break;
+        }
+
+        if (activity > 0)
+        {
+            int client_fd = accept(server_fd, nullptr, nullptr);
+            if (client_fd >= 0)
+            {
+                // Handle the new client connection in a different thread
+                client_threads.emplace_back(std::thread(handleClient, client_fd));
+                std::cout << "Accepted new client\n";
+            }
+        }
     }
     std::cout << "Running is false, cleaning up now." << std::endl;
 
