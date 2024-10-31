@@ -76,7 +76,7 @@ void handleClient(int client_fd)
 
 int main()
 {
-
+    // Instantiate a thread pool
     std::vector<std::thread> client_threads;
 
     signal(SIGINT, signalHandler);
@@ -111,8 +111,10 @@ int main()
         return -1;
     }
 
+    // Start accepting connections via poll
     while (running)
     {
+        // Set the poll to listen to server_fd and perform reads
         pollfd listeningSocketFD = {};
         listeningSocketFD.fd = server_fd;
         listeningSocketFD.events = POLLRDNORM;
@@ -120,12 +122,14 @@ int main()
 
         int activity = poll(&listeningSocketFD, 1, 1);
 
+        // Check for error
         if (activity < 0)
         {
             std::cerr << "Failed to poll()" << std::endl;
             break;
         }
 
+        // Check for actvitity
         if (activity > 0)
         {
             int client_fd = accept(server_fd, nullptr, nullptr);
@@ -136,6 +140,7 @@ int main()
                 std::cout << "Accepted new client\n";
             }
         }
+        // Poll timed out, restart poll
     }
     std::cout << "Running is false, cleaning up now." << std::endl;
 
