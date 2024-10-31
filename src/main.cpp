@@ -12,6 +12,7 @@
 #include <poll.h>
 
 #include "main.h"
+#include "linkedList.h"
 
 void signalHandler(int signum)
 {
@@ -75,6 +76,7 @@ void handleClient(int client_fd)
 
 int main()
 {
+
     std::vector<std::thread> client_threads;
 
     signal(SIGINT, signalHandler);
