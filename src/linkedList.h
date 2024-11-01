@@ -51,7 +51,7 @@ public:
      */
     std::shared_ptr<Node<T>> insertAtBeginning(T val)
     {
-        std::shared_ptr<Node<T>> newNode = std::make_unique<Node<T>>(val);
+        std::shared_ptr<Node<T>> newNode = std::make_shared<Node<T>>(val);
         newNode->next = head;
         if (head)
         {
@@ -74,7 +74,7 @@ public:
      */
     std::shared_ptr<Node<T>> insertAtEnd(T val)
     {
-        std::shared_ptr<Node<T>> newNode = std::make_unique<Node<T>>(val);
+        std::shared_ptr<Node<T>> newNode = std::make_shared<Node<T>>(val);
         newNode->prev = tail;
         if (tail)
         {

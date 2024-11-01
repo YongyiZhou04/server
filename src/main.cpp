@@ -1,47 +1,58 @@
-#include <iostream>
-#include <cstring>
-#include <signal.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <unistd.h>
-#include <vector>
-#include <thread>
-#include <algorithm>
-#include <mutex>
-#include <atomic>
-#include <poll.h>
-
 #include "main.h"
-#include "linkedList.h"
 
+#include "linkedList.h"
+#include "floor.h"
+
+/**
+ * @brief SIGINT handler.
+ *
+ * Sets the global running bool to false to initiate server shutdown.
+ *
+ * @param signum The signal integer.
+ */
 void signalHandler(int signum)
 {
     std::cout << "\nCaught signal " << signum << ". Shutting down server..." << std::endl;
     running.store(false);
 }
 
-void handleClient(int client_fd)
+/**
+ * @brief Client handler.
+ *
+ * Handles a client on a separate thread, listening on client socket
+ * for data sent from client and processes the client's response.
+ *
+ * @param client_fd The client's file descriptor as an integer.
+ *
+ * @note The client handler does and should not handle more logic than
+ * simply receiving the request and replying with a response.
+ */
+void handleClient(int client_fd, std::shared_ptr<Floor> floor)
 {
-    // Create a buffer
-    char buffer[1024] = {0};
+    char buffer[1024];
+
+    // Start listening for data sent from the client
     while (running)
     {
+        // Set the poll to listen to both write and reads on client_fd
         pollfd clientSocketFD = {};
         clientSocketFD.fd = client_fd;
         clientSocketFD.events = POLLRDNORM | POLLWRNORM;
-        clientSocketFD.revents = 0;
+        clientSocketFD.revents = 0; // Set the response event as the 0 mask
 
         int activity = poll(&clientSocketFD, 1, 1);
 
+        // Check for error
         if (activity < 0)
         {
             std::cerr << "Failed to poll() from client" << std::endl;
             break;
         }
 
+        // Check to see if ready to read or write
         if (activity > 0)
         {
-            if (clientSocketFD.revents & POLLRDNORM)
+            if (clientSocketFD.revents & POLLRDNORM) // Check that socket is ready to read
             {
                 int valread = read(client_fd, buffer, sizeof(buffer) - 1);
                 if (valread <= 0)
@@ -58,7 +69,8 @@ void handleClient(int client_fd)
 
                 // Respond to client
                 std::string response = "We received " + std::string(buffer);
-                if (clientSocketFD.revents & POLLWRNORM)
+
+                if (clientSocketFD.revents & POLLWRNORM) // Check that socket is ready to write
                 {
                     int valsent = send(client_fd, response.c_str(), response.size(), 0);
                     if (valsent <= 0)
@@ -67,7 +79,17 @@ void handleClient(int client_fd)
                     }
                 }
             }
+            if (clientSocketFD.revents & POLLWRNORM) // Check that socket is ready to write
+            {
+                std::string response = "Price: {}" + std::to_string(floor->GetPrice("AAPL")) + "\r";
+                int valsent = send(client_fd, response.c_str(), response.size(), 0);
+                if (valsent <= 0)
+                {
+                    std::cerr << "Failed to send feedback to client" << std::endl;
+                }
+            }
         }
+        // Poll timed out, repeat poll
     }
 
     std::cout << "Served closed, closing client..." << std::endl;
@@ -111,6 +133,9 @@ int main()
         return -1;
     }
 
+    // TODO: Maybe use weak_ptr and unique_ptr?
+    std::shared_ptr<Floor> floor = std::make_shared<Floor>();
+
     // Start accepting connections via poll
     while (running)
     {
@@ -118,7 +143,7 @@ int main()
         pollfd listeningSocketFD = {};
         listeningSocketFD.fd = server_fd;
         listeningSocketFD.events = POLLRDNORM;
-        listeningSocketFD.revents = 0;
+        listeningSocketFD.revents = 0; // Set response event as 0 mask
 
         int activity = poll(&listeningSocketFD, 1, 1);
 
@@ -129,14 +154,14 @@ int main()
             break;
         }
 
-        // Check for actvitity
+        // Check to see if ready to read
         if (activity > 0)
         {
             int client_fd = accept(server_fd, nullptr, nullptr);
             if (client_fd >= 0)
             {
                 // Handle the new client connection in a different thread
-                client_threads.emplace_back(std::thread(handleClient, client_fd));
+                client_threads.emplace_back(std::thread(handleClient, client_fd, floor));
                 std::cout << "Accepted new client\n";
             }
         }

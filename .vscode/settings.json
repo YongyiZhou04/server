@@ -64,6 +64,8 @@
     "algorithm": "cpp",
     "thread": "cpp",
     "__tree": "cpp",
-    "map": "cpp"
+    "map": "cpp",
+    "charconv": "cpp",
+    "format": "cpp"
   }
 }

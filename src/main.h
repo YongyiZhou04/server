@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <mutex>
 #include <poll.h>
+#include <format>
 
 const int PORT = 8080;
 std::atomic<bool> running{true};
