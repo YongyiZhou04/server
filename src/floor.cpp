@@ -58,12 +58,21 @@ float Floor::getPrice(std::string ticker)
     return price;
 };
 
-std::string process(char *order)
+std::string process(char *order_raw)
 {
-    std::tuple<bool, std::string, unsigned long> parsed_order = Floor::parse(order);
-    bool action = std::get<bool>(parsed_order);
-    std::string ticker = std::get<std::string>(parsed_order);
-    unsigned long quantity = std::get<unsigned long>(parsed_order);
+    std::tuple<bool, std::string, unsigned long> order;
+    std::optional<std::tuple<bool, std::string, unsigned long>> parsed_order = Floor::parseOrder(order_raw);
+    if (parsed_order)
+    {
+        order = parsed_order.value();
+    }
+    else
+    {
+        return "";
+    }
+    bool action = std::get<bool>(order);
+    std::string ticker = std::get<std::string>(order);
+    unsigned long quantity = std::get<unsigned long>(order);
 
     return std::string{};
     // TODO: must check if any of the things are null, if so, then the client has written an invalid order request.
@@ -72,8 +81,62 @@ std::string process(char *order)
 }
 // TODO: contoinuously process orders and send events to user.
 //  void addOrder
-static std::tuple<bool, std::string, unsigned long> parse(char *content)
+static std::optional<std::tuple<bool, std::string, unsigned long>> parseOrder(char *content) // TODO: maybe consider throwing an exception?
 {
+    bool buy;
+    std::string ticker;
+    unsigned long quantity;
+
+    int counter = 0;
+
+    std::string result;
+
+    for (int i = 0; i < std::strlen(content); i++)
+    {
+        if (content[i] == ' ')
+        {
+            if (counter == 0)
+            {
+                if (result == "buy")
+                {
+                    buy = true;
+                }
+                else if ((result == "sell"))
+                {
+                    buy = false;
+                }
+                else
+                {
+                    return {};
+                }
+                result = "";
+                counter += 1;
+            }
+            else if (counter == 1)
+            {
+                ticker = result;
+                counter += 1;
+            }
+            else
+            {
+                try
+                {
+                    quantity = std::stol(result);
+                    return std::make_tuple(buy, ticker, quantity);
+                }
+                catch (const std::invalid_argument &e)
+                {
+                    std::cout << "Invalid argument: " << e.what() << "\n";
+                    return {};
+                }
+                catch (const std::out_of_range &e)
+                {
+                    std::cout << "Out of range: " << e.what() << "\n";
+                    return {};
+                }
+            }
+        }
+    }
 }
 
 void Floor::display()

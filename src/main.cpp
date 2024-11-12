@@ -29,7 +29,7 @@ void signalHandler(int signum)
  */
 void handleClient(int client_fd, std::shared_ptr<Floor> floor)
 {
-    char buffer[1024];
+    char order[1024];
 
     // Start listening for data sent from the client
     while (running)
@@ -54,7 +54,7 @@ void handleClient(int client_fd, std::shared_ptr<Floor> floor)
         {
             if (clientSocketFD.revents & POLLRDNORM) // Check that socket is ready to read
             {
-                int valread = read(client_fd, buffer, sizeof(buffer) - 1);
+                int valread = read(client_fd, order, sizeof(order) - 1);
                 if (valread <= 0)
                 {
                     std::cerr << "Read from client failed or connection closed" << std::endl;
@@ -62,13 +62,12 @@ void handleClient(int client_fd, std::shared_ptr<Floor> floor)
                 }
 
                 // Null-terminate the buffer based on bytes read
-                buffer[valread] = '\0';
+                order[valread] = '\0';
 
                 // Print out receival in server log
-                std::cout << "Received: " << buffer << std::endl;
+                std::cout << "Received: " << order << std::endl;
 
-                // Respond to client
-                std::string response = "We received " + std::string(buffer);
+                std::string response = floor->process(order);
 
                 if (clientSocketFD.revents & POLLWRNORM) // Check that socket is ready to write
                 {
@@ -77,15 +76,6 @@ void handleClient(int client_fd, std::shared_ptr<Floor> floor)
                     {
                         std::cerr << "Failed to send feedback to client" << std::endl;
                     }
-                }
-            }
-            if (clientSocketFD.revents & POLLWRNORM) // Check that socket is ready to write
-            {
-                std::string response = "Price: {}" + std::to_string(floor->GetPrice("AAPL")) + "\r";
-                int valsent = send(client_fd, response.c_str(), response.size(), 0);
-                if (valsent <= 0)
-                {
-                    std::cerr << "Failed to send feedback to client" << std::endl;
                 }
             }
         }

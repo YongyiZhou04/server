@@ -19,7 +19,7 @@ public:
 
     float getPrice(std::string ticker);
 
-    static std::tuple<bool, std::string, unsigned long> parse(char *content);
+    static std::tuple<bool, std::string, unsigned long> parseOrder(char *content);
 
     void display();
 
