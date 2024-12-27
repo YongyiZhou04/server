@@ -11,7 +11,7 @@ TARGET = ./main
 TARGET_DEL = ./main
 
 # Source files
-SRC = ./src/main.cpp ./src/floor.cpp
+SRC = ./src/main.cpp ./src/floor.cpp src/order.cpp
 
 # Object files
 OBJS = $(SRC:.cpp=.o)

@@ -13,5 +13,9 @@
 #include <poll.h>
 #include <format>
 
+#include "priorityLinkedList.h"
+#include "floor.h"
+#include "order.h"
+
 const int PORT = 8080;
 std::atomic<bool> running{true};

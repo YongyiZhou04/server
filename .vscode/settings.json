@@ -66,6 +66,7 @@
     "__tree": "cpp",
     "map": "cpp",
     "charconv": "cpp",
-    "format": "cpp"
+    "format": "cpp",
+    "condition_variable": "cpp"
   }
 }

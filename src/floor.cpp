@@ -1,9 +1,3 @@
-#include <map>
-#include <ctime>
-#include <string>
-#include <iostream>
-
-#include "linkedList.h"
 #include "floor.h"
 
 /** Thinking from a high level, we need the floor to do a few things:
@@ -53,90 +47,239 @@
 
 float Floor::getPrice(std::string ticker)
 {
-    std::srand(std::time(0));
-    float price = 100.0 + (std::rand() % RAND_MAX) * 100;
-    return price;
-};
+    // std::srand(std::time(0));
+    // float price = 100.0f + static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX) * 100.0f;
+    // return price;
+    return 100.0f;
+}
 
-std::string process(char *order_raw)
+std::string Floor::process(char *order_raw)
 {
-    std::tuple<bool, std::string, unsigned long> order;
+    std::cout << "floor.cpp - process => process called" << std::endl;
+
+    Order order;
     std::optional<std::tuple<bool, std::string, unsigned long>> parsed_order = Floor::parseOrder(order_raw);
+    bool buy;
     if (parsed_order)
     {
-        order = parsed_order.value();
+        std::string ticker = std::get<std::string>(parsed_order.value());
+        float price = Floor::getPrice(ticker);
+        unsigned long quantity = std::get<unsigned long>(parsed_order.value());
+
+        buy = std::get<bool>(parsed_order.value());
+
+        auto now = std::chrono::system_clock::now();
+        long long time = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+
+        order = Order(ticker, price, quantity, time);
+        std::cout << "floor.cpp - process => order parsed successfully: " << order.display() << std::endl;
     }
     else
     {
-        return "";
+        std::cout << "floor.cpp - process => failed to parse order" << std::endl;
+        return std::string{};
     }
-    bool action = std::get<bool>(order);
-    std::string ticker = std::get<std::string>(order);
-    unsigned long quantity = std::get<unsigned long>(order);
-
-    return std::string{};
-    // TODO: must check if any of the things are null, if so, then the client has written an invalid order request.
-
+    if (tickerThreads.find(order.getTicker()) == tickerThreads.end())
+    {
+        startTickerThread(order.getTicker());
+        std::cout << "floor.cpp - process => " + order.getTicker() << " thread started" << std::endl;
+    }
     // TODO: add the order into the orders map.
+
+    std::unordered_map<std::string, PriorityLinkedList<Order, long long>> &orders = buy ? buyOrders : sellOrders;
+    std::lock_guard<std::mutex> lock(orderBookMutex);
+    if (orders.find(order.getTicker()) == orders.end())
+    {
+        orders[order.getTicker()] = PriorityLinkedList<Order, long long>();
+    }
+    orders[order.getTicker()].insert(order, order.getTime());
+
+    std::string orderType = buy ? "buy" : "sell";
+
+    return "processing " + orderType + " order:\nTicker: " + order.getTicker() + "\nQuantity: " + std::to_string(order.getQuantity()) + "\nTime: " + std::to_string(order.getTime());
 }
 // TODO: contoinuously process orders and send events to user.
 //  void addOrder
-static std::optional<std::tuple<bool, std::string, unsigned long>> parseOrder(char *content) // TODO: maybe consider throwing an exception?
+std::optional<std::tuple<bool, std::string, unsigned long>> Floor::parseOrder(char *content) // TODO: maybe consider throwing an exception?
 {
+    std::cout << "floor.cpp - parseOrder => parseOrder called with: " << content << std::endl;
+
     bool buy;
     std::string ticker;
     unsigned long quantity;
 
-    int counter = 0;
+    const char *space = " ";
+    std::vector<std::string> result = Floor::split(std::string(content), *space);
 
-    std::string result;
-
-    for (int i = 0; i < std::strlen(content); i++)
+    for (const std::string &str : result)
     {
-        if (content[i] == ' ')
+        std::cout << "\"" << str << "\"" << std::endl;
+    }
+
+    if (result.size() != 3)
+    {
+        std::cout << "floor.cpp - split => content length is not correct" << std::endl;
+        return {};
+    }
+
+    if (result[0] != "buy" && result[0] != "sell")
+    {
+        std::cout << "floor.cpp - split => first element is neither buy nor sell" << std::endl;
+        return {};
+    }
+    else
+    {
+        buy = result[0] == "buy" ? true : false;
+    }
+
+    ticker = result[1];
+
+    try
+    {
+        quantity = stol(result[2]);
+    }
+    catch (const std::invalid_argument &e)
+    {
+        std::cout << "Invalid argument: " << e.what() << std::endl;
+    }
+    catch (const std::out_of_range &e)
+    {
+        std::cout << "Out of range: " << e.what() << std::endl;
+    }
+    catch (...)
+    {
+        std::cout << "An unknown error occurred." << std::endl;
+    }
+
+    return std::make_tuple(buy, ticker, quantity);
+}
+
+void Floor::startTickerThread(const std::string ticker)
+{
+    std::lock_guard<std::mutex> lock(mapMutex);
+    if (tickerThreads.find(ticker) == tickerThreads.end())
+    {
+        tickerThreads[ticker] = std::make_pair(
+            std::thread(std::bind(&Floor::matchOrder, this, ticker, std::ref(tickerThreads[ticker].second))),
+            true // Initial running flag
+        );
+    }
+}
+
+void Floor::stopTickerThread(const std::string ticker)
+{
+    std::vector<std::string> threads;
+    {
+        if (ticker.empty())
         {
-            if (counter == 0)
+            for (auto &pair : tickerThreads)
             {
-                if (result == "buy")
-                {
-                    buy = true;
-                }
-                else if ((result == "sell"))
-                {
-                    buy = false;
-                }
-                else
-                {
-                    return {};
-                }
-                result = "";
-                counter += 1;
+                std::cout << "floor.cpp - stopTickerThread => ticker empty, adding ticker:  " << pair.first << std::endl;
+                threads.push_back(pair.first);
             }
-            else if (counter == 1)
+        }
+        else
+        {
+            std::cout << "floor.cpp - stopTickerThread => adding ticker:  " << ticker << std::endl;
+            threads.push_back(ticker);
+        }
+    }
+
+    for (std::string &ticker : threads)
+    {
+        std::thread threadToJoin;
+        {
+            std::lock_guard<std::mutex> lock(mapMutex);
+            auto it = tickerThreads.find(ticker);
+            if (it != tickerThreads.end())
             {
-                ticker = result;
-                counter += 1;
+                it->second.second = false; // Signal thread to stop
+                threadToJoin = std::move(it->second.first);
+                tickerThreads.erase(it);
             }
             else
             {
-                try
+                std::cout << "No thread exists for ticker: " << ticker << std::endl;
+            }
+        }
+        if (threadToJoin.joinable())
+        {
+            std::cout << "floor.cpp - stopTickerThread => waiting thread to join" << std::endl;
+            threadToJoin.join(); // Wait for thread to finish
+        }
+    }
+}
+
+void Floor::matchOrder(const std::string ticker, std::atomic<bool> &running)
+{
+    while (running)
+    {
+        std::lock_guard<std::mutex> lock(orderBookMutex);
+        if (!running)
+            break; // Exit if stop signal is received
+        std::shared_ptr<Node<Order, long long>> buyOrder = buyOrders[ticker].head;
+        std::shared_ptr<Node<Order, long long>> sellOrder = sellOrders[ticker].head;
+        while (sellOrder != nullptr && buyOrder != nullptr)
+        {
+            float sellPrice = sellOrder->val.getPrice();
+            float buyPrice = buyOrder->val.getPrice();
+            if (sellPrice <= buyPrice)
+            {
+                unsigned long sellQuantity = sellOrder->val.getQuantity();
+                unsigned long buyQuantity = buyOrder->val.getQuantity();
+                if (sellQuantity >= buyQuantity)
                 {
-                    quantity = std::stol(result);
-                    return std::make_tuple(buy, ticker, quantity);
+
+                    sellOrder->val.setQuantity(sellQuantity - buyQuantity);
+                    buyOrders[ticker].remove(buyOrder);
                 }
-                catch (const std::invalid_argument &e)
+                else
                 {
-                    std::cout << "Invalid argument: " << e.what() << "\n";
-                    return {};
+                    buyOrder->val.setQuantity(buyQuantity - sellQuantity);
+                    sellOrders[ticker].remove(sellOrder);
                 }
-                catch (const std::out_of_range &e)
+                std::cout << "successfully matched " << buyOrder->val.display() << " with " << sellOrder->val.display() << std::endl;
+            }
+            else
+            {
+                if (sellOrder->val.getTime() < buyOrder->val.getTime())
                 {
-                    std::cout << "Out of range: " << e.what() << "\n";
-                    return {};
+                    std::cout << "floor.cpp - matchOrder => moving to next buy order" << std::endl;
+                    buyOrder = buyOrder->next;
+                    if (buyOrder == nullptr)
+                    {
+                        sellOrder = sellOrder->next;
+                        buyOrder = buyOrders[ticker].head;
+                    }
+                }
+                else
+                {
+                    std::cout << "floor.cpp - matchOrder => moving to next sell order" << std::endl;
+                    sellOrder = sellOrder->next;
+                    if (sellOrder == nullptr)
+                    {
+                        buyOrder = buyOrder->next;
+                        sellOrder = sellOrders[ticker].head;
+                    }
                 }
             }
         }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
+}
+
+std::vector<std::string> Floor::split(const std::string &str, const char delimiter)
+{
+    std::vector<std::string> result;
+    size_t start = 0, end = 0;
+    while ((end = str.find(delimiter, start)) != std::string::npos)
+    {
+        result.push_back(str.substr(start, end - start));
+        start = end + 1;
+        std::cout << "splitting..." << std::endl;
+    }
+    result.push_back(str.substr(start));
+    return result;
 }
 
 void Floor::display()

@@ -1,0 +1,18 @@
+We can have many designs for how orders are filled. Now there are a few assumptions that we must make:
+1. Do we have sellers and buyers
+2. Is it FIFO, Proata, Top, or LMM?
+3. Can orders expire and, if so, what is the expiration time (time-in-force).
+
+Of course, we can implement many schemes and this is something you can do. But, let's just focus on one thing right now...
+
+For simplicity and as a warmup, let's assume that there is always a buyer and always a seller. In this case, we just need
+to satisfy requests and send back the successful action (sell or buy) at the market price that the order was placed. Of course,
+this is overly simplistic, but this is just a warmup after all.
+
+Now, for the second model, let's go for something more realistic and complex. Let's do a FIFO structure that matches the first
+buy order to a sell order such that buy > sell. Now, one might consider what the price should be. The price doesn't matter, as long
+as the buyer is offering a price higher than the seller is willing to sell for. In a real market, you can imagine that buyers and sellers
+will converge in their prices since buyers don't want to pay for more than they have to and seller don't want to sell for less than they
+desire. Thus, there will always ne some haggling but the prices of sell and buys should all be in close proximity.
+
+This is good for now, we can deal with the other schemes later.

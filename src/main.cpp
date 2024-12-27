@@ -1,8 +1,5 @@
 #include "main.h"
 
-#include "linkedList.h"
-#include "floor.h"
-
 /**
  * @brief SIGINT handler.
  *
@@ -83,6 +80,7 @@ void handleClient(int client_fd, std::shared_ptr<Floor> floor)
     }
 
     std::cout << "Served closed, closing client..." << std::endl;
+    floor->stopTickerThread();
     close(client_fd);
 }
 
