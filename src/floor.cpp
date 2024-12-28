@@ -79,20 +79,22 @@ std::string Floor::process(char *order_raw)
         std::cout << "floor.cpp - process => failed to parse order" << std::endl;
         return std::string{};
     }
+    // TODO: add the order into the orders map.
+
+    std::unordered_map<std::string, std::unique_ptr<PriorityLinkedList<Order, long long>>> &orders = buy ? buyOrders : sellOrders;
+
+    if (orders.find(order.getTicker()) == orders.end())
+    {
+        auto list = std::make_unique<PriorityLinkedList<Order, long long>>();
+        orders[order.getTicker()] = std::move(list);
+    }
+    orders[order.getTicker()]->insert(order, order.getTime());
+
     if (tickerThreads.find(order.getTicker()) == tickerThreads.end())
     {
         startTickerThread(order.getTicker());
         std::cout << "floor.cpp - process => " + order.getTicker() << " thread started" << std::endl;
     }
-    // TODO: add the order into the orders map.
-
-    std::unordered_map<std::string, PriorityLinkedList<Order, long long>> &orders = buy ? buyOrders : sellOrders;
-    std::lock_guard<std::mutex> lock(orderBookMutex);
-    if (orders.find(order.getTicker()) == orders.end())
-    {
-        orders[order.getTicker()] = PriorityLinkedList<Order, long long>();
-    }
-    orders[order.getTicker()].insert(order, order.getTime());
 
     std::string orderType = buy ? "buy" : "sell";
 
@@ -156,7 +158,7 @@ std::optional<std::tuple<bool, std::string, unsigned long>> Floor::parseOrder(ch
 
 void Floor::startTickerThread(const std::string ticker)
 {
-    std::lock_guard<std::mutex> lock(mapMutex);
+    // std::lock_guard<std::mutex> lock(mapMutex);
     if (tickerThreads.find(ticker) == tickerThreads.end())
     {
         tickerThreads[ticker] = std::make_pair(
@@ -189,7 +191,7 @@ void Floor::stopTickerThread(const std::string ticker)
     {
         std::thread threadToJoin;
         {
-            std::lock_guard<std::mutex> lock(mapMutex);
+            // std::lock_guard<std::mutex> lock(mapMutex);
             auto it = tickerThreads.find(ticker);
             if (it != tickerThreads.end())
             {
@@ -214,31 +216,38 @@ void Floor::matchOrder(const std::string ticker, std::atomic<bool> &running)
 {
     while (running)
     {
-        std::lock_guard<std::mutex> lock(orderBookMutex);
+
         if (!running)
             break; // Exit if stop signal is received
-        std::shared_ptr<Node<Order, long long>> buyOrder = buyOrders[ticker].head;
-        std::shared_ptr<Node<Order, long long>> sellOrder = sellOrders[ticker].head;
+
+        std::shared_ptr<Node<Order, long long>> buyOrder = buyOrders.find(ticker) != buyOrders.end() ? buyOrders[ticker]->head : nullptr;
+        std::shared_ptr<Node<Order, long long>> sellOrder = sellOrders.find(ticker) != sellOrders.end() ? sellOrders[ticker]->head : nullptr;
         while (sellOrder != nullptr && buyOrder != nullptr)
         {
             float sellPrice = sellOrder->val.getPrice();
             float buyPrice = buyOrder->val.getPrice();
-            if (sellPrice <= buyPrice)
+            if (sellPrice == buyPrice)
+            {
+                buyOrders[ticker]->remove(buyOrder);
+                sellOrders[ticker]->remove(sellOrder);
+                break;
+            }
+            else if (sellPrice < buyPrice)
             {
                 unsigned long sellQuantity = sellOrder->val.getQuantity();
                 unsigned long buyQuantity = buyOrder->val.getQuantity();
                 if (sellQuantity >= buyQuantity)
                 {
-
                     sellOrder->val.setQuantity(sellQuantity - buyQuantity);
-                    buyOrders[ticker].remove(buyOrder);
+                    buyOrders[ticker]->remove(buyOrder);
                 }
                 else
                 {
                     buyOrder->val.setQuantity(buyQuantity - sellQuantity);
-                    sellOrders[ticker].remove(sellOrder);
+                    sellOrders[ticker]->remove(sellOrder);
                 }
                 std::cout << "successfully matched " << buyOrder->val.display() << " with " << sellOrder->val.display() << std::endl;
+                break;
             }
             else
             {
@@ -249,7 +258,7 @@ void Floor::matchOrder(const std::string ticker, std::atomic<bool> &running)
                     if (buyOrder == nullptr)
                     {
                         sellOrder = sellOrder->next;
-                        buyOrder = buyOrders[ticker].head;
+                        buyOrder = buyOrders[ticker]->head;
                     }
                 }
                 else
@@ -259,7 +268,7 @@ void Floor::matchOrder(const std::string ticker, std::atomic<bool> &running)
                     if (sellOrder == nullptr)
                     {
                         buyOrder = buyOrder->next;
-                        sellOrder = sellOrders[ticker].head;
+                        sellOrder = sellOrders[ticker]->head;
                     }
                 }
             }

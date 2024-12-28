@@ -18,31 +18,34 @@ class Floor
 private:
     std::unordered_map<std::string, float> prices;
     std::unordered_map<std::string, unsigned long> quantity;
-    std::unordered_map<std::string, PriorityLinkedList<Order, long long>> buyOrders;
-    std::unordered_map<std::string, PriorityLinkedList<Order, long long>> sellOrders;
+    std::unordered_map<std::string, std::unique_ptr<PriorityLinkedList<Order, long long>>> buyOrders;
+    std::unordered_map<std::string, std::unique_ptr<PriorityLinkedList<Order, long long>>> sellOrders;
     std::unordered_map<std::string, std::pair<std::thread, std::atomic<bool>>> tickerThreads;
-    std::mutex orderBookMutex;
     std::mutex mapMutex;
     std::condition_variable cv;
 
 public:
     Floor(std::unordered_map<std::string, float> prices = {},
-          std::unordered_map<std::string, unsigned long> quantity = {},
-          std::unordered_map<std::string, PriorityLinkedList<Order, long long>> buyOrders = {},
-          std::unordered_map<std::string, PriorityLinkedList<Order, long long>> sellOrders = {}) : prices(prices), quantity(quantity), buyOrders(buyOrders), sellOrders(sellOrders) {}
-
-    ~Floor()
+          std::unordered_map<std::string, unsigned long> quantity = {}) : prices(prices), quantity(quantity)
     {
-        stopTickerThread(""); // Stop all threads
+        buyOrders = std::unordered_map<std::string, std::unique_ptr<PriorityLinkedList<Order, long long>>>{};
+        ;
+        sellOrders = std::unordered_map<std::string, std::unique_ptr<PriorityLinkedList<Order, long long>>>{};
+        ;
     }
 
-    // Prevent copying
-    Floor(const Floor &) = delete;
-    Floor &operator=(const Floor &) = delete;
+    // ~Floor()
+    // {
+    //     stopTickerThread(""); // Stop all threads
+    // }
 
-    // Allow moving if needed
-    Floor(Floor &&) = default;
-    Floor &operator=(Floor &&) = default;
+    // // Prevent copying
+    // Floor(const Floor &) = delete;
+    // Floor &operator=(const Floor &) = delete;
+
+    // // Allow moving if needed
+    // Floor(Floor &&) = default;
+    // Floor &operator=(Floor &&) = default;
 
     float getPrice(std::string ticker);
 

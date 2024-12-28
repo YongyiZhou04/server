@@ -37,10 +37,15 @@ public:
 template <typename T, typename K>
 class PriorityLinkedList
 {
+
+private:
+    std::mutex mutex;
+
 public:
     std::shared_ptr<Node<T, K>> head;
     std::shared_ptr<Node<T, K>> tail;
 
+    PriorityLinkedList(std::shared_ptr<Node<T, K>> head = nullptr, std::shared_ptr<Node<T, K>> tail = nullptr) : head(head), tail(tail) {};
     /**
      * @brief Chronologically inserts a node with the given value to the linked list.
      *
@@ -50,6 +55,7 @@ public:
      */
     std::shared_ptr<Node<T, K>> insert(T val, K key)
     {
+        std::lock_guard<std::mutex> lock(mutex);
         // Create the new node to insert.
         std::shared_ptr<Node<T, K>> newNode = std::make_shared<Node<T, K>>(val, key);
 
@@ -107,6 +113,7 @@ public:
      */
     std::shared_ptr<Node<T, K>> removeAtBeginning()
     {
+        std::lock_guard<std::mutex> lock(mutex);
         std::shared_ptr<Node<T, K>> prev_head = head;
         if (prev_head)
         {
@@ -131,6 +138,7 @@ public:
      */
     std::shared_ptr<Node<T, K>> removeAtEnd()
     {
+        std::lock_guard<std::mutex> lock(mutex);
         std::shared_ptr<Node<T, K>> prev_tail = tail;
         if (prev_tail)
         {
@@ -157,6 +165,7 @@ public:
      */
     std::shared_ptr<Node<T, K>> remove(T val, K key)
     {
+        std::lock_guard<std::mutex> lock(mutex);
         std::shared_ptr<Node<T, K>> n = find(val);
 
         // if the node is null, then return null
@@ -190,6 +199,7 @@ public:
      */
     std::shared_ptr<Node<T, K>> remove(std::shared_ptr<Node<T, K>> n)
     {
+        std::lock_guard<std::mutex> lock(mutex);
         // if the node is null, then return null
         if (!n)
         {
