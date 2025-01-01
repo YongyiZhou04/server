@@ -230,6 +230,7 @@ void Floor::matchOrder(const std::string ticker, std::atomic<bool> &running)
             {
                 buyOrders[ticker]->remove(buyOrder);
                 sellOrders[ticker]->remove(sellOrder);
+                std::cout << "successfully matched " << buyOrder->val.display() << " with " << sellOrder->val.display() << std::endl;
                 break;
             }
             else if (sellPrice < buyPrice)

@@ -2,7 +2,8 @@
 CXX = g++
 
 # Compiler flags
-CXXFLAGS = -Wall -std=c++2b -g
+CXXFLAGS = -Wall -std=c++2b -g -I/opt/homebrew/include
+LDFLAGS = -L/opt/homebrew/lib -lsodium
 
 # Target executable
 TARGET = ./main

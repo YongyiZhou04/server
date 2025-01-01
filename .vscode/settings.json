@@ -67,6 +67,10 @@
     "map": "cpp",
     "charconv": "cpp",
     "format": "cpp",
-    "condition_variable": "cpp"
+    "condition_variable": "cpp",
+    "span": "cpp",
+    "numeric": "cpp",
+    "random": "cpp",
+    "set": "cpp"
   }
 }
