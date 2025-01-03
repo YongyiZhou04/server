@@ -1,9 +1,11 @@
 #pragma once
 
+#include <algorithm>
 #include <ctime>
 #include <string>
 #include <iostream>
 #include <thread>
+#include <sys/socket.h>
 #include <unordered_map>
 #include <mutex>
 #include <condition_variable>
@@ -51,7 +53,7 @@ public:
 
     static std::optional<std::tuple<bool, std::string, unsigned long>> parseOrder(char *content);
 
-    std::string process(char *order);
+    std::string process(int user_fd, char *order);
 
     void startTickerThread(const std::string ticker);
 

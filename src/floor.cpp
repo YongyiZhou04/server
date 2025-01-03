@@ -53,7 +53,7 @@ float Floor::getPrice(std::string ticker)
     return 100.0f;
 }
 
-std::string Floor::process(char *order_raw)
+std::string Floor::process(int user_fd, char *order_raw)
 {
     std::cout << "floor.cpp - process => process called" << std::endl;
 
@@ -71,7 +71,7 @@ std::string Floor::process(char *order_raw)
         auto now = std::chrono::system_clock::now();
         long long time = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
 
-        order = Order(ticker, price, quantity, time);
+        order = Order(ticker, price, quantity, time, user_fd);
         std::cout << "floor.cpp - process => order parsed successfully: " << order.display() << std::endl;
     }
     else
@@ -98,7 +98,7 @@ std::string Floor::process(char *order_raw)
 
     std::string orderType = buy ? "buy" : "sell";
 
-    return "processing " + orderType + " order:\nTicker: " + order.getTicker() + "\nQuantity: " + std::to_string(order.getQuantity()) + "\nTime: " + std::to_string(order.getTime());
+    return "processing " + orderType + " order:\nTicker: " + order.getTicker() + "\nQuantity: " + std::to_string(order.getQuantity()) + "\nTime: " + std::to_string(order.getTime()) + "\n";
 }
 // TODO: contoinuously process orders and send events to user.
 //  void addOrder
@@ -222,22 +222,25 @@ void Floor::matchOrder(const std::string ticker, std::atomic<bool> &running)
 
         std::shared_ptr<Node<Order, long long>> buyOrder = buyOrders.find(ticker) != buyOrders.end() ? buyOrders[ticker]->head : nullptr;
         std::shared_ptr<Node<Order, long long>> sellOrder = sellOrders.find(ticker) != sellOrders.end() ? sellOrders[ticker]->head : nullptr;
+
+        std::string buyMessage;
+        std::string sellMessage;
+
         while (sellOrder != nullptr && buyOrder != nullptr)
         {
             float sellPrice = sellOrder->val.getPrice();
             float buyPrice = buyOrder->val.getPrice();
-            if (sellPrice == buyPrice)
-            {
-                buyOrders[ticker]->remove(buyOrder);
-                sellOrders[ticker]->remove(sellOrder);
-                std::cout << "successfully matched " << buyOrder->val.display() << " with " << sellOrder->val.display() << std::endl;
-                break;
-            }
-            else if (sellPrice < buyPrice)
+            // TODO: you may wnat to not use the FD but actual userID in the check
+            if (sellPrice <= buyPrice && sellOrder->val.getUserFD() != buyOrder->val.getUserFD())
             {
                 unsigned long sellQuantity = sellOrder->val.getQuantity();
                 unsigned long buyQuantity = buyOrder->val.getQuantity();
-                if (sellQuantity >= buyQuantity)
+                if (sellQuantity == buyQuantity)
+                {
+                    buyOrders[ticker]->remove(buyOrder);
+                    sellOrders[ticker]->remove(sellOrder);
+                }
+                else if (sellQuantity > buyQuantity)
                 {
                     sellOrder->val.setQuantity(sellQuantity - buyQuantity);
                     buyOrders[ticker]->remove(buyOrder);
@@ -247,6 +250,10 @@ void Floor::matchOrder(const std::string ticker, std::atomic<bool> &running)
                     buyOrder->val.setQuantity(buyQuantity - sellQuantity);
                     sellOrders[ticker]->remove(sellOrder);
                 }
+
+                buyMessage = std::to_string(std::min(sellQuantity, buyQuantity)) + " buy orders of " + ticker + " filled\n";
+                sellMessage = std::to_string(std::min(sellQuantity, buyQuantity)) + " sell orders of " + ticker + " filled\n";
+
                 std::cout << "successfully matched " << buyOrder->val.display() << " with " << sellOrder->val.display() << std::endl;
                 break;
             }
@@ -271,6 +278,26 @@ void Floor::matchOrder(const std::string ticker, std::atomic<bool> &running)
                         buyOrder = buyOrder->next;
                         sellOrder = sellOrders[ticker]->head;
                     }
+                }
+            }
+        }
+
+        if (buyMessage.length() != 0 && sellMessage.length() != 0)
+        {
+            int buyUserFd = buyOrder->val.getUserFD();
+            int sellUserFd = sellOrder->val.getUserFD();
+
+            if (buyUserFd > 0 && sellUserFd > 0)
+            {
+                int buyvalsent = send(buyUserFd, buyMessage.c_str(), buyMessage.size(), 0);
+                if (buyvalsent <= 0)
+                {
+                    std::cerr << "error in sending response to buyer";
+                }
+                int sellvalsent = send(sellUserFd, sellMessage.c_str(), sellMessage.size(), 0);
+                if (sellvalsent <= 0)
+                {
+                    std::cerr << "error in sending response to seller";
                 }
             }
         }

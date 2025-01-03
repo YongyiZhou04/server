@@ -25,6 +25,11 @@ long long Order::getTime()
     return time;
 }
 
+int Order::getUserFD()
+{
+    return user_fd;
+}
+
 std::string Order::display()
 {
     return ticker + ", " + std::to_string(price) + ", " + std::to_string(quantity) + ", " + std::to_string(time);

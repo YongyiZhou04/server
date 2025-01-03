@@ -9,9 +9,10 @@ private:
     float price;
     unsigned long quantity;
     long long time;
+    int user_fd;
 
 public:
-    Order(std::string ticker = "", float price = 0.0f, unsigned long quantity = 0, long long time = 0) : ticker(ticker), price(price), quantity(quantity), time(time) {};
+    Order(std::string ticker = "", float price = 0.0f, unsigned long quantity = 0, long long time = 0, int user_fd = -1) : ticker(ticker), price(price), quantity(quantity), time(time), user_fd(user_fd) {};
 
     bool operator==(const Order &other) const
     {
@@ -27,6 +28,8 @@ public:
     void setQuantity(unsigned long newQuantity);
 
     long long getTime();
+
+    int getUserFD();
 
     std::string display();
 };

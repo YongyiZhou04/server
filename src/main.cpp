@@ -64,7 +64,7 @@ void handleClient(int client_fd, std::shared_ptr<Floor> floor)
                 // Print out receival in server log
                 std::cout << "Received: " << order << std::endl;
 
-                std::string response = floor->process(order);
+                std::string response = floor->process(client_fd, order);
 
                 if (clientSocketFD.revents & POLLWRNORM) // Check that socket is ready to write
                 {
