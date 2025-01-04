@@ -71,6 +71,13 @@
     "span": "cpp",
     "numeric": "cpp",
     "random": "cpp",
-    "set": "cpp"
+    "set": "cpp",
+    "deque": "cpp",
+    "forward_list": "cpp",
+    "execution": "cpp",
+    "list": "cpp",
+    "print": "cpp",
+    "queue": "cpp",
+    "stack": "cpp"
   }
 }

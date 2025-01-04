@@ -24,9 +24,9 @@ void signalHandler(int signum)
  * @note The client handler does and should not handle more logic than
  * simply receiving the request and replying with a response.
  */
-void handleClient(int client_fd, std::shared_ptr<Floor> floor)
+void handleClient(int client_fd, std::shared_ptr<Floor> floor, std::shared_ptr<Auth> auth)
 {
-    char order[1024];
+    char message[1024];
 
     // Start listening for data sent from the client
     while (running)
@@ -51,7 +51,7 @@ void handleClient(int client_fd, std::shared_ptr<Floor> floor)
         {
             if (clientSocketFD.revents & POLLRDNORM) // Check that socket is ready to read
             {
-                int valread = read(client_fd, order, sizeof(order) - 1);
+                int valread = read(client_fd, message, sizeof(message) - 1);
                 if (valread <= 0)
                 {
                     std::cerr << "Read from client failed or connection closed" << std::endl;
@@ -59,13 +59,43 @@ void handleClient(int client_fd, std::shared_ptr<Floor> floor)
                 }
 
                 // Null-terminate the buffer based on bytes read
-                order[valread] = '\0';
+                message[valread] = '\0';
 
                 // Print out receival in server log
-                std::cout << "Received: " << order << std::endl;
+                std::cout << "Received: " << message << std::endl;
+                std::vector<std::string> splitMessage = split(message, *" ");
 
-                std::string response = floor->process(client_fd, order);
+                std::string response;
+                if (splitMessage[0] == "signup" && splitMessage.size() == 3)
+                {
+                    bool result = auth->addUser(splitMessage[1], splitMessage[2]);
+                    response = result ? "successfully signed up" : "failed to sign up";
+                }
+                else if (splitMessage[0] == "logon" && splitMessage.size() == 3)
+                {
+                    std::string token = auth->authorize(splitMessage[1], splitMessage[2]);
+                    response = token != "" ? token : "failed to generate token";
+                }
+                else if (splitMessage[0] == "trade" && splitMessage.size() == 5)
+                {
+                    if (auth->verify(splitMessage[4]))
+                    {
+                        splitMessage.erase(splitMessage.begin());
+                        response = floor->process(client_fd, splitMessage);
+                    }
+                    else
+                    {
+                        response = "unauthorized";
+                    }
+                }
+                else
+                {
+                    response = "invalid request, please specify signup, logon or trade with correct arguments";
+                }
 
+                response += "\n";
+
+                // TODO: may have to put sending respons to client as a util function so that floor can also use it
                 if (clientSocketFD.revents & POLLWRNORM) // Check that socket is ready to write
                 {
                     int valsent = send(client_fd, response.c_str(), response.size(), 0);
@@ -123,6 +153,7 @@ int main()
 
     // TODO: Maybe use weak_ptr and unique_ptr?
     std::shared_ptr<Floor> floor = std::make_shared<Floor>();
+    std::shared_ptr<Auth> auth = std::make_shared<Auth>();
 
     // Start accepting connections via poll
     while (running)
@@ -149,7 +180,7 @@ int main()
             if (client_fd >= 0)
             {
                 // Handle the new client connection in a different thread
-                client_threads.emplace_back(std::thread(handleClient, client_fd, floor));
+                client_threads.emplace_back(std::thread(handleClient, client_fd, floor, auth));
                 std::cout << "Accepted new client\n";
             }
         }

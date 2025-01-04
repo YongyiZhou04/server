@@ -14,6 +14,7 @@
 
 #include "priorityLinkedList.h"
 #include "order.h"
+#include "util.h"
 
 class Floor
 {
@@ -51,17 +52,15 @@ public:
 
     float getPrice(std::string ticker);
 
-    static std::optional<std::tuple<bool, std::string, unsigned long>> parseOrder(char *content);
+    static std::optional<std::tuple<bool, std::string, unsigned long>> parseOrder(std::vector<std::string> content);
 
-    std::string process(int user_fd, char *order);
+    std::string process(int user_fd, std::vector<std::string> rawOrder);
 
     void startTickerThread(const std::string ticker);
 
     void stopTickerThread(const std::string ticker = "");
 
     void matchOrder(const std::string ticker, std::atomic<bool> &running);
-
-    static std::vector<std::string> split(const std::string &str, const char delimiter);
 
     void display();
 };

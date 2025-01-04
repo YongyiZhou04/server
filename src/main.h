@@ -16,6 +16,8 @@
 #include "priorityLinkedList.h"
 #include "floor.h"
 #include "order.h"
+#include "auth.h"
+#include "util.h"
 
 const int PORT = 8080;
 std::atomic<bool> running{true};

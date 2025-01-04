@@ -1,5 +1,8 @@
-#include <sodium.h>
-#include <map>
+#include <cryptlib.h>
+#include <sha.h>
+#include <hex.h>
+#include <filters.h>
+#include <unordered_map>
 #include <string>
 #include <iostream>
 #include <chrono>
@@ -13,17 +16,23 @@ class Auth
 private:
     std::unordered_map<std::string, std::string> userPW;
     std::unordered_map<std::string, Token> userToken;
-    std::set<Token> tokenSet;
+    std::set<std::string> tokenSet;
+    std::set<std::string> currentUsers;
 
-    static std::string encrypt(std::string str);
+    static std::string encrypt(const std::string &str);
     static std::string generateToken(std::string characters, int length);
 
 public:
-    Auth() = default;
+    Auth(std::unordered_map<std::string, std::string> userPW = {},
+         std::unordered_map<std::string, Token> userToken = {},
+         std::set<std::string> tokenSet = std::set<std::string>(),
+         std::set<std::string> currentUsers = std::set<std::string>()) : userPW(userPW), userToken(userToken), tokenSet(tokenSet), currentUsers(currentUsers) {}
 
-    std::string authorize(std::string username, std::string password);
+    std::string authorize(const std::string username, const std::string password);
 
-    bool verify(Token token);
+    bool verify(std::string token);
+
+    bool addUser(const std::string username, const std::string password);
 
     void deleteToken(std::string token);
 };

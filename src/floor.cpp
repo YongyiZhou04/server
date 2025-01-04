@@ -53,12 +53,12 @@ float Floor::getPrice(std::string ticker)
     return 100.0f;
 }
 
-std::string Floor::process(int user_fd, char *order_raw)
+std::string Floor::process(int user_fd, std::vector<std::string> rawOrder)
 {
     std::cout << "floor.cpp - process => process called" << std::endl;
 
     Order order;
-    std::optional<std::tuple<bool, std::string, unsigned long>> parsed_order = Floor::parseOrder(order_raw);
+    std::optional<std::tuple<bool, std::string, unsigned long>> parsed_order = Floor::parseOrder(rawOrder);
     bool buy;
     if (parsed_order)
     {
@@ -102,43 +102,40 @@ std::string Floor::process(int user_fd, char *order_raw)
 }
 // TODO: contoinuously process orders and send events to user.
 //  void addOrder
-std::optional<std::tuple<bool, std::string, unsigned long>> Floor::parseOrder(char *content) // TODO: maybe consider throwing an exception?
+std::optional<std::tuple<bool, std::string, unsigned long>> Floor::parseOrder(std::vector<std::string> content) // TODO: maybe consider throwing an exception?
 {
-    std::cout << "floor.cpp - parseOrder => parseOrder called with: " << content << std::endl;
+    std::cout << "floor.cpp - parseOrder => parseOrder called" << std::endl;
 
     bool buy;
     std::string ticker;
     unsigned long quantity;
 
-    const char *space = " ";
-    std::vector<std::string> result = Floor::split(std::string(content), *space);
-
-    for (const std::string &str : result)
+    for (const std::string &str : content)
     {
         std::cout << "\"" << str << "\"" << std::endl;
     }
 
-    if (result.size() != 3)
+    if (content.size() != 3)
     {
         std::cout << "floor.cpp - split => content length is not correct" << std::endl;
         return {};
     }
 
-    if (result[0] != "buy" && result[0] != "sell")
+    if (content[0] != "buy" && content[0] != "sell")
     {
         std::cout << "floor.cpp - split => first element is neither buy nor sell" << std::endl;
         return {};
     }
     else
     {
-        buy = result[0] == "buy" ? true : false;
+        buy = content[0] == "buy" ? true : false;
     }
 
-    ticker = result[1];
+    ticker = content[1];
 
     try
     {
-        quantity = stol(result[2]);
+        quantity = stol(content[2]);
     }
     catch (const std::invalid_argument &e)
     {
@@ -162,7 +159,7 @@ void Floor::startTickerThread(const std::string ticker)
     if (tickerThreads.find(ticker) == tickerThreads.end())
     {
         tickerThreads[ticker] = std::make_pair(
-            std::thread(std::bind(&Floor::matchOrder, this, ticker, std::ref(tickerThreads[ticker].second))),
+            std::thread(&Floor::matchOrder, this, ticker, std::ref(tickerThreads[ticker].second)),
             true // Initial running flag
         );
     }
@@ -303,20 +300,6 @@ void Floor::matchOrder(const std::string ticker, std::atomic<bool> &running)
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
-}
-
-std::vector<std::string> Floor::split(const std::string &str, const char delimiter)
-{
-    std::vector<std::string> result;
-    size_t start = 0, end = 0;
-    while ((end = str.find(delimiter, start)) != std::string::npos)
-    {
-        result.push_back(str.substr(start, end - start));
-        start = end + 1;
-        std::cout << "splitting..." << std::endl;
-    }
-    result.push_back(str.substr(start));
-    return result;
 }
 
 void Floor::display()
