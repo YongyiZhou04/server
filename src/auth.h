@@ -21,6 +21,7 @@ private:
 
     static std::string encrypt(const std::string &str);
     static std::string generateToken(std::string characters, int length);
+    void deleteToken(std::string token);
 
 public:
     Auth(std::unordered_map<std::string, std::string> userPW = {},
@@ -28,11 +29,11 @@ public:
          std::set<std::string> tokenSet = std::set<std::string>(),
          std::set<std::string> currentUsers = std::set<std::string>()) : userPW(userPW), userToken(userToken), tokenSet(tokenSet), currentUsers(currentUsers) {}
 
-    std::string authorize(const std::string username, const std::string password);
+    std::string login(const std::string username, const std::string password);
+
+    std::string logout(const std::string username, const std::string token);
 
     bool verify(std::string token);
 
     bool addUser(const std::string username, const std::string password);
-
-    void deleteToken(std::string token);
 };

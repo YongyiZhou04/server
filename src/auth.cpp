@@ -19,10 +19,10 @@ std::string Auth::encrypt(const std::string &input)
     return output;
 }
 
-std::string Auth::authorize(const std::string username, const std::string password)
+std::string Auth::login(const std::string username, const std::string password)
 {
 
-    if (userPW.find(username) == userPW.end() || userPW[username] != encrypt(password) || currentUsers.find(username) != currentUsers.end())
+    if (userPW.find(username) == userPW.end() || userPW[username] != encrypt(password) || currentUsers.find(username) != currentUsers.end() || userToken.find(username) != userToken.end())
     {
         return "";
     }
@@ -30,27 +30,55 @@ std::string Auth::authorize(const std::string username, const std::string passwo
     auto now = std::chrono::system_clock::now();
     long long time = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
 
-    if ((userToken.find(username) == userToken.end()) || ((userToken[username].getTime() - time) > 43200000))
+    std::string token = generateToken("1234567890-=qwertyuiopasdfghjklzxcvbnm,./;'_+!@#$%^&*(){}|:~`QWERTYUIOPASDFGHJKLZXCVBNM", 10);
+    Token newToken = Token(token, time);
+
+    while (tokenSet.find(newToken.getToken()) != tokenSet.end())
     {
-        std::string token = generateToken("1234567890-=qwertyuiopasdfghjklzxcvbnm,./;'_+!@#$%^&*(){}|:~`QWERTYUIOPASDFGHJKLZXCVBNM", 10);
-        Token newToken = Token(token, time);
-
-        while (tokenSet.find(newToken.getToken()) != tokenSet.end())
-        {
-            token = generateToken("1234567890-=qwertyuiopasdfghjklzxcvbnm,./;'_+!@#$%^&*(){}|:~`QWERTYUIOPASDFGHJKLZXCVBNM", 10);
-            newToken = Token(token, time);
-        }
-
-        if ((userToken[username].getTime() - time) > 43200000)
-        {
-            tokenSet.erase(userToken[username].getToken());
-        }
-
-        tokenSet.insert(newToken.getToken());
-        currentUsers.insert(username);
-        userToken[username] = newToken;
+        token = generateToken("1234567890-=qwertyuiopasdfghjklzxcvbnm,./;'_+!@#$%^&*(){}|:~`QWERTYUIOPASDFGHJKLZXCVBNM", 10);
+        newToken = Token(token, time);
     }
+
+    if ((userToken[username].getTime() - time) > 43200000)
+    {
+        tokenSet.erase(userToken[username].getToken());
+    }
+
+    tokenSet.insert(newToken.getToken());
+    currentUsers.insert(username);
+    userToken[username] = newToken;
+
     return userToken[username].getToken();
+}
+
+std::string Auth::logout(const std::string username, const std::string token)
+{
+
+    if (userToken.find(username) != userToken.end() && userToken[username] == token)
+    {
+        userToken.erase(username);
+    }
+    else
+    {
+        return "logout failed";
+    }
+    if (currentUsers.find(username) != currentUsers.end())
+    {
+        currentUsers.erase(username);
+    }
+    else
+    {
+        return "logout failed";
+    }
+    if (tokenSet.find(token) != tokenSet.end())
+    {
+        tokenSet.erase(token);
+    }
+    else
+    {
+        return "logout failed";
+    }
+    return "logout successful";
 }
 
 std::string Auth::generateToken(std::string characters, int length)

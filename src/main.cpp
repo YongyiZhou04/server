@@ -63,7 +63,8 @@ void handleClient(int client_fd, std::shared_ptr<Floor> floor, std::shared_ptr<A
 
                 // Print out receival in server log
                 std::cout << "Received: " << message << std::endl;
-                std::vector<std::string> splitMessage = split(message, *" ");
+                std::string str_message = message;
+                std::vector<std::string> splitMessage = split(str_message.substr(0, str_message.length() - 2), *" ");
 
                 std::string response;
                 if (splitMessage[0] == "signup" && splitMessage.size() == 3)
@@ -71,16 +72,21 @@ void handleClient(int client_fd, std::shared_ptr<Floor> floor, std::shared_ptr<A
                     bool result = auth->addUser(splitMessage[1], splitMessage[2]);
                     response = result ? "successfully signed up" : "failed to sign up";
                 }
-                else if (splitMessage[0] == "logon" && splitMessage.size() == 3)
+                else if (splitMessage[0] == "login" && splitMessage.size() == 3)
                 {
-                    std::string token = auth->authorize(splitMessage[1], splitMessage[2]);
+                    std::string token = auth->login(splitMessage[1], splitMessage[2]);
                     response = token != "" ? token : "failed to generate token";
+                }
+                else if (splitMessage[0] == "logout" && splitMessage.size() == 3)
+                {
+                    response = auth->logout(splitMessage[1], splitMessage[2]);
                 }
                 else if (splitMessage[0] == "trade" && splitMessage.size() == 5)
                 {
                     if (auth->verify(splitMessage[4]))
                     {
                         splitMessage.erase(splitMessage.begin());
+                        splitMessage.pop_back();
                         response = floor->process(client_fd, splitMessage);
                     }
                     else
